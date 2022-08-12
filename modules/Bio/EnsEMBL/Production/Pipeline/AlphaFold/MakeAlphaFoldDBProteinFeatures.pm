@@ -56,14 +56,16 @@ use Bio::EnsEMBL::Utils::Exception qw(throw info);
 use Bio::EnsEMBL::GIFTS::DB qw(fetch_latest_uniprot_enst_perfect_matches);
 use Bio::EnsEMBL::ProteinFeature;
 
+use JSON;
+
 sub new {
     my ($class,@args) = @_;
     my $self = $class->SUPER::new(@args);
 
-    my ($core_dba,$alpha_path,$species,$cs_version,$rest_server) = rearrange([qw(core_dba alpha_path species cs_version rest_server)],@args);
+    my ($core_dba,$alphafold_mapfile,$species,$cs_version,$rest_server) = rearrange([qw(core_dba alphafold_mapfile species cs_version rest_server)],@args);
 
     $self->{'core_dba'} = $core_dba;
-    $self->{'alpha_path'} = $alpha_path;
+    $self->{'alphafold_mapfile'} = $alphafold_mapfile;
     $self->{'species'} = $species;
     $self->{'cs_version'} = $cs_version;
     $self->{'rest_server'} = $rest_server;
@@ -93,7 +95,7 @@ sub new {
 sub run {
     my ($self) = @_;
 
-    $self->{'afdb_info'} = $self->parse_afdb_file();
+    $self->{'afdb_info'} = $self->read_afdb_file();
     unless (ref($self->{'afdb_info'}) eq 'ARRAY') {
         die "Missing info from AFDB file. Path: " . $self->{'alpha_path'} . ". Species: " . $self->{'species'} . "\n";
     }
@@ -143,45 +145,30 @@ sub fetch_uniprot_ensembl_matches {
 }
 
 
-=head2 parse_pdb_file
+=head2 read_afdb_file
 
  Arg [1]    : None
- Description: Parse the CSV AFDB file containing the following 9 columns:
-                AFDB XXXX CHAIN RES_BEG RES_END UNP SP_PRIMARY SP_DESC PDB_BEG PDB_END
-              It skips the entry if the start of the protein is greater than the end as we cannot display it correctly.
+ Description: Read the AFDB mapping file
  Returntype : Arrayref of hashref, SP_PRIMARY, AFDB, CHAIN, RES_BEG, RES_END, SP_BEG, SP_END and SIFTS_RELEASE_DATE as keys
  Exceptions : Throws if it cannot open the file
               Throws if it cannot close the AFDB file
 
 =cut
 
-sub parse_afdb_file() {
-  my $self = shift;
+sub read_afdb_file() {
+    my $self = shift;
+    my $file = $self->{'alphafold_mapfile'};
 
-  open(my $afdb_fh,'<',$self->{'alpha_path'}) || throw('Cannot open: '.$self->{'alpha_path'});
-  my @afdb_info = ();
-  my $sifts_release_date;
+    my $jsondata;
+    {
+        open my $fh, '<', $file or throw "Error opening alphafold mapping file '$file': $!";
+        local $/ = undef;
+        $jsondata = <$fh>;
+        close($fh) or throw("Error closing file '$file': $!");
+    }
 
-  while (my $line = <$afdb_fh>) {
-
-    # parse a AFDB-UniProt line
-    my ($afdb,undef,$chain,$res_beg,$res_end,undef,$sp_primary,undef,$sp_beg,$sp_end) = split(/\s+/,$line);
-    #my $clean_afdb = $afdb =~ /(AF-\w-\w)-model_\w.pdb:DBREF/g;
-    my ($clean_afdb) = $afdb =~ /(AF-\w+-\w+)-model_\w+.pdb:DBREF/;
-
-    push(@afdb_info,{'AFDB' => $clean_afdb,
-                    'CHAIN' => $chain,
-                    'SP_PRIMARY' => $sp_primary,
-                    'RES_BEG' => $res_beg,
-                    'RES_END' => $res_end,
-                    'SP_BEG' => $sp_beg,
-                    'SP_END' => $sp_end,
-                    'SIFTS_RELEASE_DATE' => $sifts_release_date
-                   }) unless ($sp_beg > $sp_end);
-    # ignore complex AFDB-UniProt mappings that allow SP_BEG > SP_END
-  }
-  close($afdb_fh) || throw('Cannot close '.$self->{'alpha_path'});
-  return \@afdb_info;
+    my $afdb_info = decode_json $jsondata;
+    return $afdb_info;
 }
 
 

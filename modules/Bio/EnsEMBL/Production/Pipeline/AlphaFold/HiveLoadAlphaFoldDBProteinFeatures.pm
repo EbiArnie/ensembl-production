@@ -73,7 +73,7 @@ sub param_defaults {
 
     return {
       %{$self->SUPER::param_defaults},
-      alpha_path => undef,
+      alphafold_mapfile => undef,
       core_dbhost => undef,
       core_dbport => undef,
       core_dbname => undef,
@@ -88,7 +88,7 @@ sub param_defaults {
 sub fetch_input {
   my $self = shift;
 
-  $self->param_required('alpha_path');
+  $self->param_required('alphafold_mapfile');
   $self->param_required('core_dbhost');
   $self->param_required('core_dbport');
   $self->param_required('core_dbname');
@@ -114,12 +114,12 @@ sub fetch_input {
     -analysis => new Bio::EnsEMBL::Analysis(-logic_name => 'alphafold_import',
                                             -db => 'alphafold',
                                             #-db_version => , it will be populated in the MakePDBProteinFeatures module when parsing the file
-                                            -db_file => $self->param('alpha_path'),
+                                            -db_file => $self->param('alphafold_mapfile'),
                                             -display_label => 'AlphaFoldDB import',
                                             -displayable => '1',
                                             -description => 'Protein features based on the AlphaFoldDB-UniProt mappings'),
     -core_dba => $self->hrdb_get_con("core"),
-    -alpha_path => $self->param('alpha_path'),
+    -alphafold_mapfile => $self->param('alphafold_mapfile'),
     -species => $self->param('species'),
     -cs_version => $self->param('cs_version'),
     -rest_server => $self->param('rest_server')
